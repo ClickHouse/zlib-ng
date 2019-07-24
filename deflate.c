@@ -238,10 +238,6 @@ int ZEXPORT PREFIX(deflateInit2_)(PREFIX3(stream) *strm, int level, int method, 
      * output size for (length,distance) codes is <= 24 bits.
      */
 
-#ifdef X86_CPUID
-    x86_check_features();
-#endif
-
     if (version == NULL || version[0] != my_version[0] || stream_size != sizeof(PREFIX3(stream))) {
         return Z_VERSION_ERROR;
     }
