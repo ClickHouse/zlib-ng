@@ -266,12 +266,6 @@ int ZEXPORT PREFIX(deflateInit2_)(PREFIX3(stream) *strm, int level, int method, 
     int wrap = 1;
     static const char my_version[] = PREFIX2(VERSION);
 
-#if defined(X86_CPUID)
-    x86_check_features();
-#elif defined(ARM_GETAUXVAL)
-    arm_check_features();
-#endif
-
     if (version == NULL || version[0] != my_version[0] || stream_size != sizeof(PREFIX3(stream))) {
         return Z_VERSION_ERROR;
     }
