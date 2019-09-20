@@ -17,10 +17,10 @@
 #include <cpuid.h>
 #endif
 
-ZLIB_INTERNAL int x86_cpu_has_sse2;
-ZLIB_INTERNAL int x86_cpu_has_sse42;
-ZLIB_INTERNAL int x86_cpu_has_pclmulqdq;
-ZLIB_INTERNAL int x86_cpu_has_tzcnt;
+ZLIB_INTERNAL int x86_cpu_has_sse2 = 0;
+ZLIB_INTERNAL int x86_cpu_has_sse42 = 0;
+ZLIB_INTERNAL int x86_cpu_has_pclmulqdq = 0;
+ZLIB_INTERNAL int x86_cpu_has_tzcnt = 0;
 
 static void cpuid(int info, unsigned* eax, unsigned* ebx, unsigned* ecx, unsigned* edx) {
 #ifdef _MSC_VER
