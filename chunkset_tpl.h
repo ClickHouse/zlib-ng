@@ -106,9 +106,9 @@ Z_INTERNAL uint8_t* CHUNKUNROLL(uint8_t *out, unsigned *dist, unsigned *len) {
 /* Copy DIST bytes from OUT - DIST into OUT + DIST * k, for 0 <= k < LEN/DIST.
    Return OUT + LEN. */
 Z_INTERNAL uint8_t* CHUNKMEMSET(uint8_t *out, unsigned dist, unsigned len) {
-    /* Debug performance related issues when len < sizeof(uint64_t):
-       Assert(len >= sizeof(uint64_t), "chunkmemset should be called on larger chunks"); */
-    Assert(dist > 0, "chunkmemset cannot have a distance 0");
+    // This assertion fails in 00900_orc_load. Disable it while the problem is
+    // being discussed. See https://github.com/zlib-ng/zlib-ng/pull/396#issuecomment-531569029
+    // Assert(len >= sizeof(uint64_t), "chunkmemset should be called on larger chunks");
 
     unsigned char *from = out - dist;
     chunk_t chunk;
