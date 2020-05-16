@@ -142,7 +142,6 @@ Z_INTERNAL void cpu_check_features(void)
     if (features_checked)
         return;
 #if defined(X86_FEATURES)
-    x86_check_features();
 #elif defined(ARM_FEATURES)
     arm_check_features();
 #elif defined(POWER_FEATURES)
