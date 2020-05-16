@@ -81,7 +81,6 @@ ZLIB_INTERNAL void cpu_check_features(void)
     if (features_checked)
         return;
 #ifdef X86_CPUID
-    x86_check_features();
 #elif ARM_CPUID
     arm_check_features();
 #endif

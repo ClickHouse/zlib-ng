@@ -11,5 +11,6 @@ extern int x86_cpu_has_sse2;
 extern int x86_cpu_has_sse42;
 extern int x86_cpu_has_pclmulqdq;
 extern int x86_cpu_has_tzcnt;
+extern int x86_cpu_has_avx2;
 
 #endif /* CPU_H_ */
