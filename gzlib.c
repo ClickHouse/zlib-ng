@@ -6,7 +6,7 @@
 #include "zbuild.h"
 #include "gzguts.h"
 
-#if defined(WIN32) && !defined(__BORLANDC__)
+#if defined(_WIN32) && !defined(__BORLANDC__)
 #  define LSEEK _lseeki64
 #else
 #if defined(_LARGEFILE64_SOURCE) && _LFS64_LARGEFILE-0
@@ -181,7 +181,7 @@ static gzFile gz_open(const void *path, int fd, const char *mode) {
 
     /* open the file with the appropriate flags (or just use fd) */
     state->fd = fd > -1 ? fd : (
-#if defined(WIN32) || defined(__MINGW__)
+#if defined(_WIN32)
         fd == -2 ? _wopen(path, oflag, 0666) :
 #elif __CYGWIN__
         fd == -2 ? open(state->path, oflag, 0666) :
@@ -215,10 +215,11 @@ gzFile ZEXPORT PREFIX(gzopen)(const char *path, const char *mode) {
     return gz_open(path, -1, mode);
 }
 
-/* -- see zlib.h -- */
-gzFile ZEXPORT PREFIX(gzopen64)(const char *path, const char *mode) {
+#ifdef ZLIB_COMPAT
+gzFile ZEXPORT PREFIX4(gzopen)(const char *path, const char *mode) {
     return gz_open(path, -1, mode);
 }
+#endif
 
 /* -- see zlib.h -- */
 gzFile ZEXPORT PREFIX(gzdopen)(int fd, const char *mode) {
@@ -285,7 +286,7 @@ int ZEXPORT PREFIX(gzrewind)(gzFile file) {
 }
 
 /* -- see zlib.h -- */
-z_off64_t ZEXPORT PREFIX(gzseek64)(gzFile file, z_off64_t offset, int whence) {
+z_off64_t ZEXPORT PREFIX4(gzseek)(gzFile file, z_off64_t offset, int whence) {
     unsigned n;
     z_off64_t ret;
     gz_state *state;
@@ -356,15 +357,17 @@ z_off64_t ZEXPORT PREFIX(gzseek64)(gzFile file, z_off64_t offset, int whence) {
 }
 
 /* -- see zlib.h -- */
+#ifdef ZLIB_COMPAT
 z_off_t ZEXPORT PREFIX(gzseek)(gzFile file, z_off_t offset, int whence) {
     z_off64_t ret;
 
-    ret = PREFIX(gzseek64)(file, (z_off64_t)offset, whence);
+    ret = PREFIX4(gzseek)(file, (z_off64_t)offset, whence);
     return ret == (z_off_t)ret ? (z_off_t)ret : -1;
 }
+#endif
 
 /* -- see zlib.h -- */
-z_off64_t ZEXPORT PREFIX(gztell64)(gzFile file) {
+z_off64_t ZEXPORT PREFIX4(gztell)(gzFile file) {
     gz_state *state;
 
     /* get internal structure and check integrity */
@@ -379,15 +382,18 @@ z_off64_t ZEXPORT PREFIX(gztell64)(gzFile file) {
 }
 
 /* -- see zlib.h -- */
+#ifdef ZLIB_COMPAT
 z_off_t ZEXPORT PREFIX(gztell)(gzFile file) {
+
     z_off64_t ret;
 
-    ret = PREFIX(gztell64)(file);
+    ret = PREFIX4(gztell)(file);
     return ret == (z_off_t)ret ? (z_off_t)ret : -1;
 }
+#endif
 
 /* -- see zlib.h -- */
-z_off64_t ZEXPORT PREFIX(gzoffset64)(gzFile file) {
+z_off64_t ZEXPORT PREFIX4(gzoffset)(gzFile file) {
     z_off64_t offset;
     gz_state *state;
 
@@ -408,12 +414,14 @@ z_off64_t ZEXPORT PREFIX(gzoffset64)(gzFile file) {
 }
 
 /* -- see zlib.h -- */
+#ifdef ZLIB_COMPAT
 z_off_t ZEXPORT PREFIX(gzoffset)(gzFile file) {
     z_off64_t ret;
 
-    ret = PREFIX(gzoffset64)(file);
+    ret = PREFIX4(gzoffset)(file);
     return ret == (z_off_t)ret ? (z_off_t)ret : -1;
 }
+#endif
 
 /* -- see zlib.h -- */
 int ZEXPORT PREFIX(gzeof)(gzFile file) {

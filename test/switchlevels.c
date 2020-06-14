@@ -13,8 +13,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_WIN32) || defined(__CYGWIN__)
+#  include <fcntl.h>
+#  include <io.h>
+#  define SET_BINARY_MODE(file) setmode(fileno(file), O_BINARY)
+#else
+#  define SET_BINARY_MODE(file)
+#endif
+
 static int read_all(unsigned char *buf, size_t size) {
-    for (size_t total_read = 0; total_read < size;) {
+    size_t total_read = 0;
+    while (total_read < size) {
         size_t n_read = fread(buf + total_read, 1, size - total_read, stdin);
         if (ferror(stdin)) {
             perror("fread\n");
@@ -30,7 +39,8 @@ static int read_all(unsigned char *buf, size_t size) {
 }
 
 static int write_all(unsigned char *buf, size_t size) {
-    for (size_t total_written = 0; total_written < size;) {
+    size_t total_written = 0;
+    while (total_written < size) {
         size_t n_written = fwrite(buf + total_written, 1, size - total_written, stdout);
         if (ferror(stdout)) {
             perror("fwrite\n");
@@ -43,13 +53,27 @@ static int write_all(unsigned char *buf, size_t size) {
 
 static int compress_chunk(PREFIX3(stream) *strm, int level, int size, int last) {
     int ret = 1;
-    int err = PREFIX(deflateParams)(strm, level, Z_DEFAULT_STRATEGY);
+    int err = 0;
+    unsigned long compsize;
+    unsigned char *buf;
+
+    if (size <= 0) {
+        fprintf(stderr, "compress_chunk() invalid size %d\n", size);
+        goto done;
+    }
+    if (level < 0 || level > 9) {
+        fprintf(stderr, "compress_chunk() invalid level %d\n", level);
+        goto done;
+    }
+
+    err = PREFIX(deflateParams)(strm, level, Z_DEFAULT_STRATEGY);
     if (err != Z_OK) {
         fprintf(stderr, "deflateParams() failed with code %d\n", err);
         goto done;
     }
-    unsigned long compsize = 100 + 2 * PREFIX(deflateBound)(strm, size);
-    unsigned char *buf = malloc(size + compsize);
+
+    compsize = 100 + 2 * PREFIX(deflateBound)(strm, size);
+    buf = malloc(size + compsize);
     if (buf == NULL) {
         fprintf(stderr, "Out of memory\n");
         goto done;
@@ -57,10 +81,12 @@ static int compress_chunk(PREFIX3(stream) *strm, int level, int size, int last) 
     if (read_all(buf, size) != 0) {
         goto free_buf;
     }
+
     strm->next_in = buf;
     strm->avail_in = size;
     strm->next_out = buf + size;
     strm->avail_out = compsize;
+
     err = PREFIX(deflate)(strm, last ? Z_FINISH : Z_SYNC_FLUSH);
     if ((!last && err != Z_OK) || (last && err != Z_STREAM_END)) {
         fprintf(stderr, "deflate() failed with code %d\n", err);
@@ -74,33 +100,64 @@ static int compress_chunk(PREFIX3(stream) *strm, int level, int size, int last) 
         goto free_buf;
     }
     ret = 0;
+
 free_buf:
     free(buf);
 done:
     return ret;
 }
 
-/* ===========================================================================
- * Usage:  switchlevels level1 size1 [level2 size2 ...]
- */
+void show_help(void)
+{
+    printf("Usage: switchlevels [-w bits] level1 size1 [level2 size2 ...]\n\n" \
+           "  -w : window bits (8 to 15 for gzip, -8 to -15 for zlib)\n\n");
+}
 
 int main(int argc, char **argv) {
     int ret = EXIT_FAILURE;
+    int err = 0;
+    int size = 0;
+    int level = Z_DEFAULT_COMPRESSION;
+    int level_arg = 1;
+    int window_bits = MAX_WBITS + 16;
     PREFIX3(stream) strm;
+
+
+    if ((argc == 1) || (argc == 2 && strcmp(argv[1], "--help") == 0)) {
+        show_help();
+        return 0;
+    }
+
+    SET_BINARY_MODE(stdin);
+    SET_BINARY_MODE(stdout);
+
     memset(&strm, 0, sizeof(strm));
-    int err = PREFIX(deflateInit2)(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, MAX_WBITS + 16, 8, Z_DEFAULT_STRATEGY);
+
+    for (int i = 1; i < argc - 1; i++) {
+        if (strcmp(argv[i], "-w") == 0 && i+1 < argc) {
+            window_bits = atoi(argv[++i]);
+        } else {
+            level_arg = i;
+            level = atoi(argv[i]);
+            break;
+        }
+    }
+
+    err = PREFIX(deflateInit2)(&strm, level, Z_DEFLATED, window_bits, 8, Z_DEFAULT_STRATEGY);
     if (err != Z_OK) {
         fprintf(stderr, "deflateInit() failed with code %d\n", err);
         goto done;
     }
-    for (int i = 1; i < argc - 1; i += 2) {
-        int level = atoi(argv[i]);
-        int size = atoi(argv[i + 1]);
+
+    for (int i = level_arg; i < argc - 1; i += 2) {
+        level = atoi(argv[i]);
+        size = atoi(argv[i + 1]);
         if (compress_chunk(&strm, level, size, i + 2 >= argc - 1) != 0) {
             goto deflate_end;
         }
     }
     ret = EXIT_SUCCESS;
+
 deflate_end:
     PREFIX(deflateEnd)(&strm);
 done:

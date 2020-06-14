@@ -11,7 +11,6 @@
 #include "zbuild.h"
 #include "deflate.h"
 #include "deflate_p.h"
-#include "match_p.h"
 #include "functable.h"
 
 struct match {
@@ -86,7 +85,6 @@ static void insert_match(deflate_state *s, struct match match) {
     } else {
         match.strstart += match.match_length;
         match.match_length = 0;
-        s->ins_h = s->window[match.strstart];
         if (match.strstart >= (MIN_MATCH - 2))
 #if MIN_MATCH != 3
             functable.insert_string(s, match.strstart + 2 - MIN_MATCH, MIN_MATCH - 2);
@@ -100,7 +98,7 @@ static void insert_match(deflate_state *s, struct match match) {
 }
 
 static void fizzle_matches(deflate_state *s, struct match *current, struct match *next) {
-    IPos limit;
+    Pos limit;
     unsigned char *match, *orig;
     int changed = 0;
     struct match c, n;
@@ -171,7 +169,7 @@ ZLIB_INTERNAL block_state deflate_medium(deflate_state *s, int flush) {
     memset(&next_match, 0, sizeof(struct match));
 
     for (;;) {
-        IPos hash_head = 0;   /* head of the hash chain */
+        Pos hash_head = 0;    /* head of the hash chain */
         int bflush = 0;       /* set if current block must be flushed */
 
         /* Make sure that we always have enough lookahead, except
@@ -220,7 +218,7 @@ ZLIB_INTERNAL block_state deflate_medium(deflate_state *s, int flush) {
                  * of window index 0 (in particular we have to avoid a match
                  * of the string with itself at the start of the input file).
                  */
-                current_match.match_length = longest_match(s, hash_head);
+                current_match.match_length = functable.longest_match(s, hash_head);
                 current_match.match_start = s->match_start;
                 if (current_match.match_length < MIN_MATCH)
                     current_match.match_length = 1;
@@ -252,7 +250,7 @@ ZLIB_INTERNAL block_state deflate_medium(deflate_state *s, int flush) {
                  * of window index 0 (in particular we have to avoid a match
                  * of the string with itself at the start of the input file).
                  */
-                next_match.match_length = longest_match(s, hash_head);
+                next_match.match_length = functable.longest_match(s, hash_head);
                 next_match.match_start = s->match_start;
                 if (next_match.match_start >= next_match.strstart) {
                     /* this can happen due to some restarts */
@@ -263,11 +261,6 @@ ZLIB_INTERNAL block_state deflate_medium(deflate_state *s, int flush) {
                 else
                     fizzle_matches(s, &current_match, &next_match);
             }
-
-            /* short matches with a very long distance are rarely a good idea encoding wise */
-            /* distances 8193–16384 take 12 extra bits, distances 16385–32768 take 13 extra bits */
-            if (next_match.match_length == 3 && (next_match.strstart - next_match.match_start) > 12000)
-                    next_match.match_length = 1;
             s->strstart = current_match.strstart;
 
         } else {

@@ -7,7 +7,6 @@
 #include "zbuild.h"
 #include "deflate.h"
 #include "deflate_p.h"
-#include "match_p.h"
 #include "functable.h"
 
 /* ===========================================================================
@@ -18,7 +17,7 @@
  * matches. It is used only for the fast compression options.
  */
 ZLIB_INTERNAL block_state deflate_fast(deflate_state *s, int flush) {
-    IPos hash_head;       /* head of the hash chain */
+    Pos hash_head;        /* head of the hash chain */
     int bflush = 0;       /* set if current block must be flushed */
 
     for (;;) {
@@ -52,7 +51,7 @@ ZLIB_INTERNAL block_state deflate_fast(deflate_state *s, int flush) {
              * of window index 0 (in particular we have to avoid a match
              * of the string with itself at the start of the input file).
              */
-            s->match_length = longest_match(s, hash_head);
+            s->match_length = functable.longest_match(s, hash_head);
             /* longest_match() sets match_start */
         }
         if (s->match_length >= MIN_MATCH) {
@@ -75,7 +74,6 @@ ZLIB_INTERNAL block_state deflate_fast(deflate_state *s, int flush) {
             } else {
                 s->strstart += s->match_length;
                 s->match_length = 0;
-                s->ins_h = s->window[s->strstart];
 #if MIN_MATCH != 3
                 functable.insert_string(s, s->strstart + 2 - MIN_MATCH, MIN_MATCH - 2);
 #else
@@ -87,7 +85,6 @@ ZLIB_INTERNAL block_state deflate_fast(deflate_state *s, int flush) {
             }
         } else {
             /* No match, output a literal byte */
-            Tracevv((stderr, "%c", s->window[s->strstart]));
             bflush = zng_tr_tally_lit(s, s->window[s->strstart]);
             s->lookahead--;
             s->strstart++;

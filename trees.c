@@ -75,6 +75,7 @@ static int  build_bl_tree    (deflate_state *s);
 static void send_all_trees   (deflate_state *s, int lcodes, int dcodes, int blcodes);
 static void compress_block   (deflate_state *s, const ct_data *ltree, const ct_data *dtree);
 static int  detect_data_type (deflate_state *s);
+static void bi_flush         (deflate_state *s);
 
 /* ===========================================================================
  * Initialize the tree data structures for a new zlib stream.
@@ -412,9 +413,9 @@ static void scan_tree(deflate_state *s, ct_data *tree, int max_code) {
     int prevlen = -1;          /* last emitted length */
     int curlen;                /* length of current code */
     int nextlen = tree[0].Len; /* length of next code */
-    int count = 0;             /* repeat count of the current code */
-    int max_count = 7;         /* max repeat count */
-    int min_count = 4;         /* min repeat count */
+    uint16_t count = 0;        /* repeat count of the current code */
+    uint16_t max_count = 7;    /* max repeat count */
+    uint16_t min_count = 4;    /* min repeat count */
 
     if (nextlen == 0)
         max_count = 138, min_count = 3;
@@ -470,7 +471,7 @@ static void send_tree(deflate_state *s, ct_data *tree, int max_code) {
 
     // Temp local variables
     uint32_t bi_valid = s->bi_valid;
-    uint32_t bi_buf = s->bi_buf;
+    uint64_t bi_buf = s->bi_buf;
 
     for (n = 0; n <= max_code; n++) {
         curlen = nextlen;
@@ -560,7 +561,7 @@ static void send_all_trees(deflate_state *s, int lcodes, int dcodes, int blcodes
 
     // Temp local variables
     uint32_t bi_valid = s->bi_valid;
-    uint32_t bi_buf = s->bi_buf;
+    uint64_t bi_buf = s->bi_buf;
 
     Tracev((stderr, "\nbl counts: "));
     send_bits(s, lcodes-257, 5, bi_buf, bi_valid); /* not +255 as stated in appnote.txt */
@@ -597,11 +598,12 @@ void ZLIB_INTERNAL zng_tr_stored_block(deflate_state *s, char *buf, unsigned lon
     put_short(s, (uint16_t)~stored_len);
     cmpr_bits_add(s, 32);
     sent_bits_add(s, 32);
-    if (stored_len)
+    if (stored_len) {
         memcpy(s->pending_buf + s->pending, (unsigned char *)buf, stored_len);
-    s->pending += stored_len;
-    cmpr_bits_add(s, stored_len << 3);
-    sent_bits_add(s, stored_len << 3);
+        s->pending += stored_len;
+        cmpr_bits_add(s, stored_len << 3);
+        sent_bits_add(s, stored_len << 3);
+    }
 }
 
 /* ===========================================================================
@@ -775,6 +777,33 @@ static int detect_data_type(deflate_state *s) {
      * this stream either is empty or has tolerated ("gray-listed") bytes only.
      */
     return Z_BINARY;
+}
+
+/* ===========================================================================
+ * Flush the bit buffer, keeping at most 7 bits in it.
+ */
+static void bi_flush(deflate_state *s) {
+    if (s->bi_valid == 64) {
+        put_uint64(s, s->bi_buf);
+        s->bi_buf = 0;
+        s->bi_valid = 0;
+    } else {
+        if (s->bi_valid >= 32) {
+            put_uint32(s, (uint32_t)s->bi_buf);
+            s->bi_buf >>= 32;
+            s->bi_valid -= 32;
+        }
+        if (s->bi_valid >= 16) {
+            put_short(s, (uint16_t)s->bi_buf);
+            s->bi_buf >>= 16;
+            s->bi_valid -= 16;
+        }
+        if (s->bi_valid >= 8) {
+            put_byte(s, s->bi_buf);
+            s->bi_buf >>= 8;
+            s->bi_valid -= 8;
+        }
+    }
 }
 
 /* ===========================================================================

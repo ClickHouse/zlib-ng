@@ -102,6 +102,7 @@ native=0
 forcesse2=0
 avx2flag="-mavx2"
 sse2flag="-msse2"
+ssse3flag="-mssse3"
 sse4flag="-msse4"
 sse42flag="-msse4.2"
 pclmulflag="-mpclmul"
@@ -326,6 +327,12 @@ if test "$gcc" -eq 1 && ($cc $CFLAGS -c $test.c) >> configure.log 2>&1; then
       else
         ARCH=native
       fi ;;
+    powerpc | ppc)
+      ARCH=powerpc ;;
+    powerpc64 | ppc64)
+      ARCH=powerpc64 ;;
+    powerpc64le | ppc64le)
+      ARCH=powerpc64le ;;
   esac
   CFLAGS="-O2 ${CFLAGS}"
   if test -n "${ARCHS}"; then
@@ -335,8 +342,14 @@ if test "$gcc" -eq 1 && ($cc $CFLAGS -c $test.c) >> configure.log 2>&1; then
   CFLAGS="${CFLAGS} -Wall"
   SFLAGS="${CFLAGS} -fPIC"
   if test $native -eq 1; then
-    CFLAGS="${CFLAGS} -march=native"
-    SFLAGS="${SFLAGS} -march=native"
+    case $ARCH in
+      powerpc*)
+        NATIVE_FLAG="-mcpu=native" ;;
+      *)
+        NATIVE_FLAG="-march=native" ;;
+    esac
+    CFLAGS="${CFLAGS} ${NATIVE_FLAG}"
+    SFLAGS="${SFLAGS} ${NATIVE_FLAG}"
   fi
   if test "$warn" -eq 1; then
     CFLAGS="${CFLAGS} -Wextra -Wpedantic -Wno-implicit-fallthrough"
@@ -644,8 +657,6 @@ EOF
 if try $CC -c $CFLAGS -D_LARGEFILE64_SOURCE=1 $test.c; then
   CFLAGS="${CFLAGS} -D_LARGEFILE64_SOURCE=1"
   SFLAGS="${SFLAGS} -D_LARGEFILE64_SOURCE=1"
-  ALL="${ALL} all64"
-  TEST="${TEST} test64"
   echo "Checking for off64_t... Yes." | tee -a configure.log
   echo "Checking for fseeko... Yes." | tee -a configure.log
 else
@@ -660,8 +671,6 @@ int main() {
 EOF
   if try $CC $CFLAGS -o $test $test.c $LDSHAREDLIBC; then
     echo "Checking for _off64_t... Yes." | tee -a configure.log
-    ALL="${ALL} all64"
-    TEST="${TEST} test64"
   else
     echo "Checking for _off64_t... No." | tee -a configure.log
   fi
@@ -852,21 +861,38 @@ EOF
   fi
 fi
 
-# Check for __builtin_ctzl() support in compiler
+# Check for __builtin_ctz() support in compiler
 cat > $test.c << EOF
 int main(void) {
     unsigned int zero = 0;
-    long test = __builtin_ctzl(zero);
+    long test = __builtin_ctz(zero);
     (void)test;
     return 0;
 }
 EOF
 if try ${CC} ${CFLAGS} $test.c $LDSHAREDLIBC; then
-    echo "Checking for __builtin_ctzl ... Yes." | tee -a configure.log
-    CFLAGS="$CFLAGS -DHAVE_BUILTIN_CTZL"
-    SFLAGS="$SFLAGS -DHAVE_BUILTIN_CTZL"
+    echo "Checking for __builtin_ctz ... Yes." | tee -a configure.log
+    CFLAGS="$CFLAGS -DHAVE_BUILTIN_CTZ"
+    SFLAGS="$SFLAGS -DHAVE_BUILTIN_CTZ"
 else
-    echo "Checking for __builtin_ctzl ... No." | tee -a configure.log
+    echo "Checking for __builtin_ctz ... No." | tee -a configure.log
+fi
+
+# Check for __builtin_ctzll() support in compiler
+cat > $test.c << EOF
+int main(void) {
+    unsigned long long zero = 0;
+    long test = __builtin_ctzll(zero);
+    (void)test;
+    return 0;
+}
+EOF
+if try ${CC} ${CFLAGS} $test.c $LDSHAREDLIBC; then
+    echo "Checking for __builtin_ctzll ... Yes." | tee -a configure.log
+    CFLAGS="$CFLAGS -DHAVE_BUILTIN_CTZLL"
+    SFLAGS="$SFLAGS -DHAVE_BUILTIN_CTZLL"
+else
+    echo "Checking for __builtin_ctzll ... No." | tee -a configure.log
 fi
 
 # Check for SSE2 intrinsics
@@ -890,6 +916,28 @@ EOF
         ;;
 esac
 
+# Check for SSSE3 intrinsics
+
+cat > $test.c << EOF
+#include <x86intrin.h>
+int main(void)
+{
+    __m128i u, v, w;
+    u = _mm_set1_epi32(1);
+    v = _mm_set1_epi32(2);
+    w = _mm_hadd_epi32(u, v);
+    (void)w;
+    return 0;
+}
+EOF
+if try ${CC} ${CFLAGS} ${ssse3flag} $test.c; then
+    echo "Checking for SSSE3 intrinsics ... Yes." | tee -a configure.log
+    HAVE_SSSE3_INTRIN=1
+else
+    echo "Checking for SSSE3 intrinsics ... No." | tee -a configure.log
+    HAVE_SSSE3_INTRIN=0
+fi
+
 # Check for SSE4.2 CRC intrinsics
 case "${ARCH}" in
     i386 | i486 | i586 | i686 | x86_64)
@@ -908,6 +956,31 @@ EOF
         else
             echo "Checking for SSE4.2 CRC intrinsics ... No." | tee -a configure.log
             HAVE_SSE42CRC_INTRIN=0
+        fi
+        ;;
+esac
+
+# Check for SSE4.2 compare string intrinsics
+case "${ARCH}" in
+    i386 | i486 | i586 | i686 | x86_64)
+        cat > $test.c << EOF
+#include <immintrin.h>
+int main(void)
+{
+    unsigned char a[64] = { 0 };
+    unsigned char b[64] = { 0 };
+    __m128i xmm_src0, xmm_src1;
+    xmm_src0 = _mm_loadu_si128((__m128i *)(char *)a);
+    xmm_src1 = _mm_loadu_si128((__m128i *)(char *)b);
+    return _mm_cmpestri(xmm_src0, 16, xmm_src1, 16, 0);
+}
+EOF
+        if try ${CC} ${CFLAGS} ${sse42flag} $test.c; then
+            echo "Checking for SSE4.2 compare string intrinsics ... Yes." | tee -a configure.log
+            HAVE_SSE42CMPSTR_INTRIN=1
+        else
+            echo "Checking for SSE4.2 compare string intrinsics ... No." | tee -a configure.log
+            HAVE_SSE42CMPSTR_INTRIN=0
         fi
         ;;
 esac
@@ -934,6 +1007,11 @@ EOF
             HAVE_PCLMULQDQ_INTRIN=0
         fi
 
+        # Enable deflate_medium at level 1
+        if test $without_new_strategies -eq 1; then
+            CFLAGS="${CFLAGS} -DNO_QUICK_STRATEGY"
+            SFLAGS="${SFLAGS} -DNO_QUICK_STRATEGY"
+        fi
         # Enable deflate_medium at level 4-6
         if test $without_new_strategies -eq 1; then
             CFLAGS="${CFLAGS} -DNO_MEDIUM_STRATEGY"
@@ -982,6 +1060,22 @@ EOF
         ;;
 esac
 
+# Check whether features needed by POWER optimisations are available
+case "${ARCH}" in
+    powerpc*)
+        cat > $test.c << EOF
+#include <sys/auxv.h>
+int main() { return (getauxval(AT_HWCAP2) & PPC_FEATURE2_ARCH_2_07); }
+EOF
+        if try $CC -c $CFLAGS -mcpu=power8 $test.c; then
+            HAVE_POWER8=1
+            echo "Check whether POWER8 instructions are available ... Yes." | tee -a configure.log
+        else
+            HAVE_POWER8=0
+            echo "Check whether POWER8 instructions are available ... No." | tee -a configure.log
+        fi
+esac
+
 # Check whether sys/sdt.h is available
 cat > $test.c << EOF
 #include <sys/sdt.h>
@@ -1005,8 +1099,8 @@ case "${ARCH}" in
     i386 | i486 | i586 | i686)
         ARCHDIR=arch/x86
 
-        CFLAGS="${CFLAGS} -DUNALIGNED_OK"
-        SFLAGS="${SFLAGS} -DUNALIGNED_OK"
+        CFLAGS="${CFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
+        SFLAGS="${SFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
 
         # Enable arch-specific optimizations?
         if test $without_optimizations -eq 0; then
@@ -1026,15 +1120,13 @@ case "${ARCH}" in
                     CFLAGS="${CFLAGS} -DX86_NOCHECK_SSE2"
                     SFLAGS="${SFLAGS} -DX86_NOCHECK_SSE2"
                 fi
+            fi
 
-                # Enable deflate_quick at level 1?
-                if test $without_new_strategies -eq 0; then
-                    CFLAGS="${CFLAGS} -DX86_QUICK_STRATEGY"
-                    SFLAGS="${SFLAGS} -DX86_QUICK_STRATEGY"
-
-                    ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} deflate_quick.o"
-                    ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} deflate_quick.lo"
-                fi
+            if test ${HAVE_SSSE3_INTRIN} -eq 1; then
+                CFLAGS="${CFLAGS} -DX86_SSSE3 -DX86_SSSE3_ADLER32"
+                SFLAGS="${SFLAGS} -DX86_SSSE3 -DX86_SSSE3_ADLER32"
+                ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} adler32_ssse3.o"
+                ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} adler32_ssse3.lo"
             fi
 
             if test ${HAVE_SSE42CRC_INTRIN} -eq 1; then
@@ -1042,11 +1134,19 @@ case "${ARCH}" in
                 SFLAGS="${SFLAGS} -DX86_SSE42_CRC_INTRIN"
             fi
 
+            if test ${HAVE_SSE42CMPSTR_INTRIN} -eq 1; then
+                CFLAGS="${CFLAGS} -DX86_SSE42_CMP_STR"
+                SFLAGS="${SFLAGS} -DX86_SSE42_CMP_STR"
+
+                ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} compare258_sse.o"
+                ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} compare258_sse.lo"
+            fi
+
             if test ${HAVE_AVX2_INTRIN} -eq 1; then
-                CFLAGS="${CFLAGS} -DX86_AVX2"
-                SFLAGS="${SFLAGS} -DX86_AVX2"
-                ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} slide_avx.o"
-                ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} slide_avx.lo"
+                CFLAGS="${CFLAGS} -DX86_AVX2 -DX86_AVX2_ADLER32"
+                SFLAGS="${SFLAGS} -DX86_AVX2 -DX86_AVX2_ADLER32"
+                ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} compare258_avx.o slide_avx.o adler32_avx.o"
+                ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} compare258_avx.lo slide_avx.lo adler32_avx.o"
             fi
 
             CFLAGS="${CFLAGS} -DX86_SSE42_CRC_HASH"
@@ -1068,8 +1168,8 @@ case "${ARCH}" in
     x86_64)
         ARCHDIR=arch/x86
 
-        CFLAGS="${CFLAGS} -DUNALIGNED_OK"
-        SFLAGS="${SFLAGS} -DUNALIGNED_OK"
+        CFLAGS="${CFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
+        SFLAGS="${SFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
 
         # Enable arch-specific optimizations?
         if test $without_optimizations -eq 0; then
@@ -1078,6 +1178,13 @@ case "${ARCH}" in
 
             ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} x86.o insert_string_sse.o slide_sse.o"
             ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} x86.lo insert_string_sse.lo slide_sse.lo"
+
+            if test ${HAVE_SSSE3_INTRIN} -eq 1; then
+                CFLAGS="${CFLAGS} -DX86_SSSE3 -DX86_SSSE3_ADLER32"
+                SFLAGS="${SFLAGS} -DX86_SSSE3 -DX86_SSSE3_ADLER32"
+                ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} adler32_ssse3.o"
+                ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} adler32_ssse3.lo"
+            fi
 
             if test ${HAVE_SSE42CRC_INTRIN} -eq 1; then
                 CFLAGS="${CFLAGS} -DX86_SSE42_CRC_INTRIN"
@@ -1092,19 +1199,18 @@ case "${ARCH}" in
             fi
 
             if test ${HAVE_AVX2_INTRIN} -eq 1; then
-                CFLAGS="${CFLAGS} -DX86_AVX2"
-                SFLAGS="${SFLAGS} -DX86_AVX2"
-                ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} slide_avx.o"
-                ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} slide_avx.lo"
+                CFLAGS="${CFLAGS} -DX86_AVX2 -DX86_AVX2_ADLER32"
+                SFLAGS="${SFLAGS} -DX86_AVX2 -DX86_AVX2_ADLER32"
+                ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} compare258_avx.o slide_avx.o adler32_avx.o"
+                ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} compare258_avx.lo slide_avx.lo adler32_avx.lo"
             fi
 
-            # Enable deflate_quick at level 1?
-            if test $without_new_strategies -eq 0; then
-                CFLAGS="${CFLAGS} -DX86_QUICK_STRATEGY"
-                SFLAGS="${SFLAGS} -DX86_QUICK_STRATEGY"
+            if test ${HAVE_SSE42CMPSTR_INTRIN} -eq 1; then
+                CFLAGS="${CFLAGS} -DX86_SSE42_CMP_STR"
+                SFLAGS="${SFLAGS} -DX86_SSE42_CMP_STR"
 
-                ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} deflate_quick.o"
-                ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} deflate_quick.lo"
+                ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} compare258_sse.o"
+                ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} compare258_sse.lo"
             fi
         fi
     ;;
@@ -1177,8 +1283,8 @@ case "${ARCH}" in
                 fi
             ;;
             armv8-a | armv8-a+simd)
-                CFLAGS="${CFLAGS} -DUNALIGNED_OK"
-                SFLAGS="${SFLAGS} -DUNALIGNED_OK"
+                CFLAGS="${CFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
+                SFLAGS="${SFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
 
                 if test $without_optimizations -eq 0; then
                     if test $buildacle -eq 1; then
@@ -1200,8 +1306,8 @@ case "${ARCH}" in
                 fi
             ;;
             armv8-a+crc | armv8-a+crc+simd | armv8.[1234]-a | armv8.[1234]-a+simd)
-                CFLAGS="-march=${ARCH} ${CFLAGS} -DUNALIGNED_OK"
-                SFLAGS="-march=${ARCH} ${SFLAGS} -DUNALIGNED_OK"
+                CFLAGS="-march=${ARCH} ${CFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
+                SFLAGS="-march=${ARCH} ${SFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
 
                 if test $without_optimizations -eq 0; then
                     CFLAGS="${CFLAGS} -DARM_ACLE_CRC_HASH"
@@ -1264,14 +1370,36 @@ case "${ARCH}" in
             fi
         fi
 
-        CFLAGS="-march=${ARCH} ${CFLAGS} -DUNALIGNED_OK"
-        SFLAGS="-march=${ARCH} ${SFLAGS} -DUNALIGNED_OK"
+        CFLAGS="-march=${ARCH} ${CFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
+        SFLAGS="-march=${ARCH} ${SFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
     ;;
-    powerpc)
-        [ ! -z $CROSS_PREFIX ] && QEMU_ARCH=ppc
-    ;;
-    powerpc64)
-        [ ! -z $CROSS_PREFIX ] && QEMU_ARCH=ppc64
+    powerpc*)
+        case "${ARCH}" in
+            powerpc)
+                [ ! -z $CROSS_PREFIX ] && QEMU_ARCH=ppc
+            ;;
+            powerpc64)
+                [ ! -z $CROSS_PREFIX ] && QEMU_ARCH=ppc64
+            ;;
+            powerpc64le)
+                [ ! -z $CROSS_PREFIX ] && QEMU_ARCH=ppc64le
+                CFLAGS="${CFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
+                SFLAGS="${SFLAGS} -DUNALIGNED_OK -DUNALIGNED64_OK"
+            ;;
+        esac
+
+        ARCHDIR=arch/power
+
+        if test $without_optimizations -eq 0; then
+            if test $HAVE_POWER8 -eq 1; then
+                ARCH_STATIC_OBJS="${ARCH_STATIC_OBJS} power.o slide_hash_power8.o"
+                ARCH_SHARED_OBJS="${ARCH_SHARED_OBJS} power.lo slide_hash_power8.lo"
+                POWERFLAGS="-DPOWER_FEATURES -DPOWER8"
+            fi
+        fi
+
+        CFLAGS="${CFLAGS} ${POWERFLAGS}"
+        SFLAGS="${SFLAGS} ${POWERFLAGS}"
     ;;
     s390x)
         [ ! -z $CROSS_PREFIX ] && QEMU_ARCH=s390x
@@ -1351,6 +1479,7 @@ echo prefix = $prefix >> configure.log
 echo sharedlibdir = $sharedlibdir >> configure.log
 echo uname = $uname >> configure.log
 echo sse2flag = $sse2flag >> configure.log
+echo ssse3flag = $ssse3flag >> configure.log
 echo sse4flag = $sse4flag >> configure.log
 echo pclmulflag = $pclmulflag >> configure.log
 echo ARCHDIR = ${ARCHDIR} >> configure.log
@@ -1441,16 +1570,6 @@ for file in $(ls -1 $SRCDIR/*.c $SRCDIR/test/*.c $SRCDIR/test/fuzz/*.c $SRCDIR/$
     if grep -q "^$obj:" Makefile; then
         # Replace the existing line with a line with all dependences.
         $(replace_in_file "s#$obj:.*#$obj: \$(SRCDIR)/$short_name $includes#g" Makefile)
-
-        # Special case example64 and minigzip64.
-        case "$obj" in
-            example.o)
-                $(replace_in_file "s#example64.o:.*#example64.o: \$(SRCDIR)/$short_name $includes#g" Makefile)
-                ;;
-            minigzip.o)
-                $(replace_in_file "s#minigzip64.o:.*#minigzip64.o: \$(SRCDIR)/$short_name $includes#g" Makefile)
-                ;;
-        esac
     else
         # Append at the end of Makefile a new line with the header dependences.
         echo "$obj: \$(SRCDIR)/$short_name $includes" >> Makefile
@@ -1490,6 +1609,7 @@ sed < $SRCDIR/$ARCHDIR/Makefile.in "
 /^TOPDIR *=/s#=.*#=$BUILDDIR#
 /^AVX2FLAG *=/s#=.*#=$avx2flag#
 /^SSE2FLAG *=/s#=.*#=$sse2flag#
+/^SSSE3FLAG *=/s#=.*#=$ssse3flag#
 /^SSE4FLAG *=/s#=.*#=$sse4flag#
 /^PCLMULFLAG *=/s#=.*#=$pclmulflag#
 " > $ARCHDIR/Makefile

@@ -36,7 +36,7 @@
 #  include <malloc.h>
 #endif
 
-#if defined(WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__)
 #  include <fcntl.h>
 #  include <io.h>
 #  define SET_BINARY_MODE(file) setmode(fileno(file), O_BINARY)
@@ -49,7 +49,7 @@
 #endif
 
 #if !defined(Z_HAVE_UNISTD_H) && !defined(_LARGEFILE64_SOURCE)
-#ifndef WIN32 /* unlink already in stdio.h for WIN32 */
+#ifndef _WIN32 /* unlink already in stdio.h for Win32 */
 extern int unlink (const char *);
 #endif
 #endif
@@ -126,7 +126,7 @@ int gz_compress_mmap(FILE *in, gzFile out) {
     int len;
     int err;
     int ifd = fileno(in);
-    caddr_t buf;    /* mmap'ed buffer for the entire input file */
+    char *buf;      /* mmap'ed buffer for the entire input file */
     off_t buf_len;  /* length of the input file */
     struct stat sb;
 
@@ -136,11 +136,11 @@ int gz_compress_mmap(FILE *in, gzFile out) {
     if (buf_len <= 0) return Z_ERRNO;
 
     /* Now do the actual mmap: */
-    buf = mmap((caddr_t) 0, buf_len, PROT_READ, MAP_SHARED, ifd, (off_t)0);
-    if (buf == (caddr_t)(-1)) return Z_ERRNO;
+    buf = mmap((char *) 0, buf_len, PROT_READ, MAP_SHARED, ifd, (off_t)0);
+    if (buf == (char *)(-1)) return Z_ERRNO;
 
     /* Compress the whole file at once: */
-    len = PREFIX(gzwrite)(out, (char *)buf, (unsigned)buf_len);
+    len = PREFIX(gzwrite)(out, buf, (unsigned)buf_len);
 
     if (len != (int)buf_len) error(PREFIX(gzerror)(out, &err));
 
@@ -250,20 +250,19 @@ void file_uncompress(char *file, int keep) {
         unlink(infile);
 }
 
-
-/* ===========================================================================
- * Usage:  minigzip [-c] [-d] [-f] [-h] [-r] [-1 to -9] [files...]
- *   -c : write to standard output
- *   -d : decompress
- *   -k : Keep input files
- *   -f : compress with Z_FILTERED
- *   -h : compress with Z_HUFFMAN_ONLY
- *   -R : compress with Z_RLE
- *   -F : compress with Z_FIXED
- *   -T : stored raw
- *   -A : auto detect type
- *   -0 to -9 : compression level
- */
+void show_help(void) {
+    printf("Usage: minigzip [-c] [-d] [-k] [-f|-h|-R|-F|-T] [-A] [-0 to -9] [files...]\n\n" \
+           "  -c : write to standard output\n" \
+           "  -d : decompress\n" \
+           "  -k : keep input files\n" \
+           "  -f : compress with Z_FILTERED\n" \
+           "  -h : compress with Z_HUFFMAN_ONLY\n" \
+           "  -R : compress with Z_RLE\n" \
+           "  -F : compress with Z_FIXED\n" \
+           "  -T : stored raw\n" \
+           "  -A : auto detect type\n" \
+           "  -0 to -9 : compression level\n\n");
+}
 
 int main(int argc, char *argv[]) {
     int copyout = 0;
@@ -275,6 +274,11 @@ int main(int argc, char *argv[]) {
     char *strategy = "";
     char *level = "6";
     char *type = "b";
+
+    if ((argc == 1) || (argc == 2 && strcmp(argv[1], "--help") == 0)) {
+        show_help();
+        return 0;
+    }
 
     prog = argv[i];
     bname = strrchr(argv[i], '/');

@@ -27,15 +27,15 @@ uint32_t adler32_c(uint32_t adler, const unsigned char *buf, size_t len) {
     adler &= 0xffff;
 
     /* in case user likes doing a byte at a time, keep it fast */
-    if (len == 1)
+    if (UNLIKELY(len == 1))
         return adler32_len_1(adler, buf, sum2);
 
     /* initial Adler-32 value (deferred check for len == 1 speed) */
-    if (buf == NULL)
+    if (UNLIKELY(buf == NULL))
         return 1L;
 
     /* in case short lengths are provided, keep it somewhat fast */
-    if (len < 16)
+    if (UNLIKELY(len < 16))
         return adler32_len_16(adler, buf, len, sum2);
 
     /* do length NMAX blocks -- requires just one modulo operation */
@@ -121,10 +121,12 @@ static uint32_t adler32_combine_(uint32_t adler1, uint32_t adler2, z_off64_t len
 }
 
 /* ========================================================================= */
+#ifdef ZLIB_COMPAT
 uint32_t ZEXPORT PREFIX(adler32_combine)(uint32_t adler1, uint32_t adler2, z_off_t len2) {
     return adler32_combine_(adler1, adler2, len2);
 }
+#endif
 
-uint32_t ZEXPORT PREFIX(adler32_combine64)(uint32_t adler1, uint32_t adler2, z_off64_t len2) {
+uint32_t ZEXPORT PREFIX4(adler32_combine)(uint32_t adler1, uint32_t adler2, z_off64_t len2) {
     return adler32_combine_(adler1, adler2, len2);
 }

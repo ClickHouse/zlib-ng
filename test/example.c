@@ -83,9 +83,9 @@ void test_gzio(const char *fname, unsigned char *uncompr, z_size_t uncomprLen) {
 #else
     int err, read;
     size_t len = strlen(hello)+1;
-    size_t comprLen;
+    z_off64_t comprLen;
     gzFile file;
-    z_off_t pos;
+    z_off64_t pos;
 
     /* Write gz file with test data */
     file = PREFIX(gzopen)(fname, "wb");
@@ -196,19 +196,19 @@ void test_gzio(const char *fname, unsigned char *uncompr, z_size_t uncomprLen) {
     /* Read first hello, hello! string with gzfread */
     strcpy((char*)uncompr, "garbages");
     read = PREFIX(gzfread)(uncompr, uncomprLen, 1, file);
-    if (strcmp(uncompr, hello) != 0) {
+    if (strcmp((const char *)uncompr, hello) != 0) {
         fprintf(stderr, "bad gzgets\n");
         exit(1);
     } else {
         printf("gzgets(): %s\n", (char*)uncompr);
     }
     pos = PREFIX(gzoffset)(file);
-    if (pos != comprLen + 10) {
+    if (pos < 0 || (size_t)pos != (comprLen + 10)) {
         fprintf(stderr, "gzoffset err: wrong offset at end\n");
         exit(1);
     }
     /* Trigger an error and clear it with gzclearerr */
-    PREFIX(gzfread)(uncompr, -1, -1, file);
+    PREFIX(gzfread)(uncompr, (size_t)-1, (size_t)-1, file);
     PREFIX(gzerror)(file, &err);
     if (err == 0) {
         fprintf(stderr, "gzerror err: no error returned\n");
@@ -227,7 +227,7 @@ void test_gzio(const char *fname, unsigned char *uncompr, z_size_t uncomprLen) {
         fprintf(stderr, "gzclose unexpected return when handle null\n");
         exit(1);
     }
-
+    (void)read;
 #endif
 }
 
@@ -281,7 +281,7 @@ void test_inflate(unsigned char *compr, size_t comprLen, unsigned char *uncompr,
     d_stream.zfree = zfree;
     d_stream.opaque = (void *)0;
 
-    d_stream.next_in  = compr;
+    d_stream.next_in  = (const unsigned char *)compr;
     d_stream.avail_in = 0;
     d_stream.next_out = uncompr;
     d_stream.total_in = 0;
@@ -319,10 +319,15 @@ void test_large_deflate(unsigned char *compr, size_t comprLen, unsigned char *un
 #ifndef ZLIB_COMPAT
     int level = -1;
     int strategy = -1;
-    zng_deflate_param_value params[] = {
-        { .param = Z_DEFLATE_LEVEL, .buf = &level, .size = sizeof(level) },
-        { .param = Z_DEFLATE_STRATEGY, .buf = &strategy, .size = sizeof(strategy) },
-    };
+    zng_deflate_param_value params[2];
+
+    params[0].param = Z_DEFLATE_LEVEL;
+    params[0].buf = &level;
+    params[0].size = sizeof(level);
+
+    params[1].param = Z_DEFLATE_STRATEGY;
+    params[1].buf = &strategy;
+    params[1].size = sizeof(strategy);
 #endif
 
     c_stream.zalloc = zalloc;
@@ -338,7 +343,7 @@ void test_large_deflate(unsigned char *compr, size_t comprLen, unsigned char *un
     /* At this point, uncompr is still mostly zeroes, so it should compress
      * very well:
      */
-    c_stream.next_in = uncompr;
+    c_stream.next_in = (const unsigned char *)uncompr;
     c_stream.avail_in = (unsigned int)uncomprLen;
     err = PREFIX(deflate)(&c_stream, Z_NO_FLUSH);
     CHECK_ERR(err, "deflate");
@@ -369,7 +374,7 @@ void test_large_deflate(unsigned char *compr, size_t comprLen, unsigned char *un
     } else {
         PREFIX(deflateParams)(&c_stream, Z_NO_COMPRESSION, Z_DEFAULT_STRATEGY);
     }
-    c_stream.next_in = compr;
+    c_stream.next_in = (const unsigned char *)compr;
     diff = (unsigned int)(c_stream.next_out - compr);
     c_stream.avail_in = diff;
     err = PREFIX(deflate)(&c_stream, Z_NO_FLUSH);
@@ -399,7 +404,7 @@ void test_large_deflate(unsigned char *compr, size_t comprLen, unsigned char *un
     } else {
         PREFIX(deflateParams)(&c_stream, Z_BEST_COMPRESSION, Z_FILTERED);
     }
-    c_stream.next_in = uncompr;
+    c_stream.next_in = (const unsigned char *)uncompr;
     c_stream.avail_in = (unsigned int)uncomprLen;
     err = PREFIX(deflate)(&c_stream, Z_NO_FLUSH);
     CHECK_ERR(err, "deflate");
@@ -426,7 +431,7 @@ void test_large_inflate(unsigned char *compr, size_t comprLen, unsigned char *un
     d_stream.zfree = zfree;
     d_stream.opaque = (void *)0;
 
-    d_stream.next_in  = compr;
+    d_stream.next_in  = (const unsigned char *)compr;
     d_stream.avail_in = (unsigned int)comprLen;
     d_stream.total_in = 0;
     d_stream.total_out = 0;
@@ -501,7 +506,7 @@ void test_sync(unsigned char *compr, size_t comprLen, unsigned char *uncompr, si
     d_stream.zfree = zfree;
     d_stream.opaque = (void *)0;
 
-    d_stream.next_in  = compr;
+    d_stream.next_in  = (const unsigned char *)compr;
     d_stream.avail_in = 2; /* just read the zlib header */
 
     err = PREFIX(inflateInit)(&d_stream);
@@ -576,7 +581,7 @@ void test_dict_inflate(unsigned char *compr, size_t comprLen, unsigned char *unc
     d_stream.zfree = zfree;
     d_stream.opaque = (void *)0;
     d_stream.adler = 0;
-    d_stream.next_in  = compr;
+    d_stream.next_in  = (const unsigned char *)compr;
     d_stream.avail_in = (unsigned int)comprLen;
 
     err = PREFIX(inflateInit)(&d_stream);

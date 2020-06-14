@@ -71,12 +71,62 @@ mandir = ${prefix}/share/man
 man3dir = ${mandir}/man3
 pkgconfigdir = ${libdir}/pkgconfig
 
-OBJZ = adler32.o compress.o crc32.o deflate.o deflate_fast.o deflate_medium.o deflate_slow.o functable.o infback.o inffast.o inflate.o inftrees.o insert_string.o trees.o uncompr.o zutil.o $(ARCH_STATIC_OBJS)
-OBJG = gzclose.o gzlib.o gzread.o gzwrite.o
+OBJZ = \
+	adler32.o \
+	compare258.o \
+	compress.o \
+	crc32.o \
+	deflate.o \
+	deflate_fast.o \
+	deflate_medium.o \
+	deflate_quick.o \
+	deflate_slow.o \
+	functable.o \
+	infback.o \
+	inffast.o \
+	inflate.o \
+	inftrees.o \
+	insert_string.o \
+	trees.o \
+	uncompr.o \
+	zutil.o \
+	$(ARCH_STATIC_OBJS)
+
+OBJG = \
+	gzclose.o \
+	gzlib.o \
+	gzread.o \
+	gzwrite.o
+
 OBJC = $(OBJZ) $(OBJG)
 
-PIC_OBJZ = adler32.lo compress.lo crc32.lo deflate.lo deflate_fast.lo deflate_medium.lo deflate_slow.lo functable.lo infback.lo inffast.lo inflate.lo inftrees.lo insert_string.lo trees.lo uncompr.lo zutil.lo $(ARCH_SHARED_OBJS)
-PIC_OBJG = gzclose.lo gzlib.lo gzread.lo gzwrite.lo
+PIC_OBJZ = \
+	adler32.lo \
+	compare258.lo \
+	compress.lo \
+	crc32.lo \
+	deflate.lo \
+	deflate_fast.lo \
+	deflate_medium.lo \
+	deflate_quick.lo \
+	deflate_slow.lo \
+	functable.lo \
+	infback.lo \
+	inffast.lo \
+	inflate.lo \
+	inftrees.lo \
+	insert_string.lo \
+	trees.lo \
+	uncompr.lo \
+	zutil.lo \
+	$(ARCH_SHARED_OBJS)
+
+PIC_OBJG = \
+	gzclose.lo \
+	gzlib.lo \
+	gzread.lo \
+	gzwrite.lo
+
 PIC_OBJC = $(PIC_OBJZ) $(PIC_OBJG)
 
 OBJS = $(OBJC)
@@ -88,8 +138,6 @@ all: static shared
 static: example$(EXE) minigzip$(EXE) fuzzers makefixed$(EXE) maketrees$(EXE) makecrct$(EXE)
 
 shared: examplesh$(EXE) minigzipsh$(EXE)
-
-all64: example64$(EXE) minigzip64$(EXE)
 
 check: test
 
@@ -187,12 +235,6 @@ example.o:
 minigzip.o:
 	$(CC) $(CFLAGS) -DWITH_GZFILEOP $(INCLUDES) -c -o $@ $(SRCDIR)/test/minigzip.c
 
-example64.o:
-	$(CC) $(CFLAGS) -DWITH_GZFILEOP -D_FILE_OFFSET_BITS=64 $(INCLUDES) -c -o $@ $(SRCDIR)/test/example.c
-
-minigzip64.o:
-	$(CC) $(CFLAGS) -DWITH_GZFILEOP -D_FILE_OFFSET_BITS=64 $(INCLUDES) -c -o $@ $(SRCDIR)/test/minigzip.c
-
 makefixed.o:
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $(SRCDIR)/tools/makefixed.c
 
@@ -249,18 +291,6 @@ endif
 
 minigzipsh$(EXE): minigzip.o $(OBJG) $(SHAREDTARGET)
 	$(CC) $(LDFLAGS) -o $@ minigzip.o $(OBJG) $(SHAREDTARGET) $(LDSHAREDLIBC)
-ifneq ($(STRIP),)
-	$(STRIP) $@
-endif
-
-example64$(EXE): example64.o $(OBJG) $(STATICLIB)
-	$(CC) $(LDFLAGS) -o $@ example64.o $(OBJG) $(TEST_LIBS) $(LDSHAREDLIBC)
-ifneq ($(STRIP),)
-	$(STRIP) $@
-endif
-
-minigzip64$(EXE): minigzip64.o $(OBJG) $(STATICLIB)
-	$(CC) $(LDFLAGS) -o $@ minigzip64.o $(OBJG) $(TEST_LIBS) $(LDSHAREDLIBC)
 ifneq ($(STRIP),)
 	$(STRIP) $@
 endif
@@ -354,7 +384,6 @@ clean:
 	@if [ -f test/Makefile ]; then $(MAKE) -C test clean; fi
 	rm -f *.o *.lo *~ \
 	   example$(EXE) minigzip$(EXE) examplesh$(EXE) minigzipsh$(EXE) \
-	   example64$(EXE) minigzip64$(EXE) \
 	   checksum_fuzzer$(EXE) compress_fuzzer$(EXE) example_small_fuzzer$(EXE) example_large_fuzzer$(EXE) \
 	   example_flush_fuzzer$(EXE) example_dict_fuzzer$(EXE) minigzip_fuzzer$(EXE) \
 	   infcover makefixed$(EXE) maketrees$(EXE) makecrct$(EXE) \
