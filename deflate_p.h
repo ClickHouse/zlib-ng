@@ -12,7 +12,7 @@
 /* Forward declare common non-inlined functions declared in deflate.c */
 
 #ifdef ZLIB_DEBUG
-void check_match(deflate_state *s, IPos start, IPos match, int length);
+void check_match(deflate_state *s, Pos start, Pos match, int length);
 #else
 #define check_match(s, start, match, length)
 #endif
@@ -32,6 +32,7 @@ static inline int zng_tr_tally_lit(deflate_state *s, unsigned char c) {
     s->sym_buf[s->sym_next++] = 0;
     s->sym_buf[s->sym_next++] = c;
     s->dyn_ltree[c].Freq++;
+    Tracevv((stderr, "%c", c));
     Assert(c <= (MAX_MATCH-MIN_MATCH), "zng_tr_tally: bad literal");
     return (s->sym_next == s->sym_end);
 }
@@ -39,8 +40,8 @@ static inline int zng_tr_tally_lit(deflate_state *s, unsigned char c) {
 static inline int zng_tr_tally_dist(deflate_state *s, unsigned dist, unsigned char len) {
     /* dist: distance of matched string */
     /* len: match length-MIN_MATCH */
-    s->sym_buf[s->sym_next++] = dist;
-    s->sym_buf[s->sym_next++] = dist >> 8;
+    s->sym_buf[s->sym_next++] = (uint8_t)(dist);
+    s->sym_buf[s->sym_next++] = (uint8_t)(dist >> 8);
     s->sym_buf[s->sym_next++] = len;
     s->matches++;
     dist--;
@@ -64,7 +65,6 @@ static inline int zng_tr_tally_dist(deflate_state *s, unsigned dist, unsigned ch
                    (last)); \
     s->block_start = s->strstart; \
     flush_pending(s->strm); \
-    Tracev((stderr, "[FLUSH]")); \
 }
 
 /* Same but force premature exit if necessary. */

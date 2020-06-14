@@ -69,7 +69,7 @@ jobs:
           - name: Ubuntu GCC Link Zlib
             os: ubuntu-latest
             compiler: gcc
-            cmake-args: -DZLIB_LINK_SYSLIB=ON
+            cmake-args: -DZLIB_DUAL_LINK=ON
 
           - name: Ubuntu GCC No AVX2
             os: ubuntu-latest
@@ -333,7 +333,8 @@ jobs:
             codecov: macos_gcc
 
     steps:
-    - uses: actions/checkout@v1
+    - name: Checkout repository
+      uses: actions/checkout@v1
 
     - name: Install packages (Ubuntu)
       if: runner.os == 'Linux' && matrix.packages
@@ -341,17 +342,28 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y ${{ matrix.packages }}
 
+    - name: Set environment variables (Windows)
+      run:  echo "::set-env name=temp::$($env:TEMP)"
+
+    - name: Cache packages (Windows)
+      uses: actions/cache@v2
+      if: runner.os == 'Windows'
+      with:
+        key: zlib-ng-win-choco-${{matrix.compiler}}
+        path: |
+          ${{env.temp}}\chocolatey\
+
     - name: Install packages (Windows)
       if: runner.os == 'Windows'
       run: |
-        choco install ninja ${{ matrix.packages }}
+        choco install ninja ${{ matrix.packages }} --no-progress
 
     - name: Install packages (Windows/GCC)
       if: runner.os == 'Windows' && matrix.codecov && matrix.compiler == 'gcc'
       # Use gcov-7 via mingw on windows because gcov-8 throws tons of warnings
       # https://partner-bugzilla.redhat.com/show_bug.cgi?id=1577508
       run: |
-        choco install mingw --version=7.3.0 --force --allow-downgrade
+        choco install mingw --version=7.3.0 --force --allow-downgrade --no-progress
 
     - name: Install packages (macOS)
       if: runner.os == 'macOS'
@@ -363,7 +375,7 @@ jobs:
       # Need to use special fork of codecov-python for Windows
       # https://github.com/codecov/codecov-python/pull/169
       run: |
-        python -u -m pip -v install git+https://github.com/nmoinvaz/codecov-python.git@master
+        python -u -m pip install git+https://github.com/nmoinvaz/codecov-python.git@master
 
     - name: Generate project files
       # Shared libaries turned off for qemu ppc* and sparc & reduce code coverage sources

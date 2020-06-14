@@ -6,7 +6,7 @@ Maintained by Hans Kristian Rosbach
 
 |CI|Status|
 |:-|-|
-|GitHub Actions|[![Master Branch Status](https://github.com/zlib-ng/zlib-ng/workflows/CI%20CMake/badge.svg)](https://github.com/zlib-ng/zlib-ng/actions) [![Master Branch Status](https://github.com/zlib-ng/zlib-ng/workflows/CI%20Configure/badge.svg)](https://github.com/zlib-ng/zlib-ng/actions)|
+|GitHub Actions|[![Master Branch Status](https://github.com/zlib-ng/zlib-ng/workflows/CI%20CMake/badge.svg)](https://github.com/zlib-ng/zlib-ng/actions) [![Master Branch Status](https://github.com/zlib-ng/zlib-ng/workflows/CI%20Configure/badge.svg)](https://github.com/zlib-ng/zlib-ng/actions) [![Master Branch Status](https://github.com/zlib-ng/zlib-ng/workflows/CI%20NMake/badge.svg)](https://github.com/zlib-ng/zlib-ng/actions)|
 |Buildkite|[![Build status](https://badge.buildkite.com/7bb1ef84356d3baee26202706cc053ee1de871c0c712b65d26.svg?branch=develop)](https://buildkite.com/circlestorm-productions/zlib-ng)|
 |CodeFactor|[![CodeFactor](https://www.codefactor.io/repository/github/zlib-ng/zlib-ng/badge)](https://www.codefactor.io/repository/github/zlib-ng/zlib-ng)|
 |OSS-Fuzz|[![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/zlib-ng.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:zlib-ng)
@@ -50,6 +50,29 @@ numerous people have contributed both small and big improvements,
 or valuable testing.
 
 Please read LICENSE.md, it is very simple and very liberal.
+
+Features
+--------
+
+* Zlib compatible API with support for dual-linking
+* Modernized native API based on zlib API for ease of porting
+* Intel deflate medium and quick algorithms
+* Support for CPU intrinsics when available
+  * Adler32 implementation using ARM Neon
+  * Intel CRC32-B implementation using PCLMULQDQ
+  * Intel CRC32-C intrinics for hash tables
+  * ARM CRC32-B implementation using ACLE
+  * Slide hash implementations using AVX2, SSE2, ARM Neon, & VSX
+  * Inflate fast using SSE2, ARM Neon
+  * Deflate hooks for IBM Z DFLTCC
+* Code sanitizers, fuzzing, and coverage
+* GitHub Actions continuous integration on Windows, macOS, and Linux
+  * Emulated CI for ARM, AARCH64, PPC, PPC64, SPARC64, S390x using qemu
+* Unaligned memory read/writes and large bit buffer improvements
+* Includes improvements from Cloudflare and Intel forks
+* Configure, CMake, and NMake build system support
+* Modern C99 syntax and a clean code layout
+* Over 200 CMake unit tests
 
 Build
 -----
@@ -177,46 +200,8 @@ Advanced Build Options
 | WITH_PCLMULQDQ                  |                       | Build with PCLMULQDQ intrinsics                                     | ON                     |
 | WITH_ACLE                       | --without-acle        | Build with ACLE intrinsics                                          | ON                     |
 | WITH_NEON                       | --without-neon        | Build with NEON intrinsics                                          | ON                     |
+| WITH_POWER8                     |                       | Build with POWER8 optimisations                                     | ON
 | WITH_DFLTCC_DEFLATE             | --with-dfltcc-deflate | Use DEFLATE COMPRESSION CALL instruction for compression on IBM Z   | OFF                    |
 | WITH_DFLTCC_INFLATE             | --with-dfltcc-inflate | Use DEFLATE COMPRESSION CALL instruction for decompression on IBM Z | OFF                    |
 | WITH_INFLATE_STRICT             |                       | Build with strict inflate distance checking                         | OFF                    |
 | WITH_INFLATE_ALLOW_INVALID_DIST |                       | Build with zero fill for inflate invalid distances                  | OFF                    |
-
-Contents
---------
-
-| Name             | Description                                                    |
-|:-----------------|:---------------------------------------------------------------|
-| arch/            | Architecture-specific code                                     |
-| doc/             | Documentation for formats and algorithms                       |
-| test/example.c   | Zlib usages examples for build testing                         |
-| test/minigzip.c  | Minimal gzip-like functionality for build testing              |
-| test/infcover.c  | Inflate code coverage for build testing                        |
-| win32/           | Shared library version resources for Windows                   |
-| CMakeLists.txt   | Cmake build script                                             |
-| configure        | Bash configure/build script                                    |
-| adler32.c        | Compute the Adler-32 checksum of a data stream                 |
-| compress.c       | Compress a memory buffer                                       |
-| deflate.*        | Compress data using the deflate algorithm                      |
-| deflate_fast.c   | Compress data using the deflate algorithm with fast strategy   |
-| deflate_medium.c | Compress data using the deflate algorithm with medium stragety |
-| deflate_slow.c   | Compress data using the deflate algorithm with slow strategy   |
-| functable.*      | Struct containing function pointers to optimized functions     |
-| gzclose.c        | Close gzip files                                               |
-| gzguts.h         | Internal definitions for gzip operations                       |
-| gzlib.c          | Functions common to reading and writing gzip files             |
-| gzread.c         | Read gzip files                                                |
-| gzwrite.c        | Write gzip files                                               |
-| infback.*        | Inflate using a callback interface                             |
-| inflate.*        | Decompress data                                                |
-| inffast.*        | Decompress data with speed optimizations                       |
-| inffixed.h       | Table for decoding fixed codes                                 |
-| inftrees.h       | Generate Huffman trees for efficient decoding                  |
-| memcopy.h        | Inline functions to copy small data chunks                     |
-| trees.*          | Output deflated data using Huffman coding                      |
-| uncompr.c        | Decompress a memory buffer                                     |
-| zconf.h.cmakein  | zconf.h template for cmake                                     |
-| zendian.h        | BYTE_ORDER for endian tests                                    |
-| zlib.3           | Man page for zlib                                              |
-| zlib.map         | Linux symbol information                                       |
-| zlib.pc.in       | Pkg-config template                                            |

@@ -50,7 +50,7 @@
 #define MAX_BITS 15
 /* All codes must not exceed MAX_BITS bits */
 
-#define BIT_BUF_SIZE 32
+#define BIT_BUF_SIZE 64
 /* size of bit buffer in bi_buf */
 
 #define END_BLOCK 256
@@ -95,10 +95,9 @@ typedef struct tree_desc_s {
 } tree_desc;
 
 typedef uint16_t Pos;
-typedef unsigned IPos;
 
 /* A Pos is an index in the character window. We use short instead of int to
- * save space in the various tables. IPos is used only for parameter passing.
+ * save space in the various tables. 
  */
 
 typedef struct internal_state {
@@ -147,19 +146,9 @@ typedef struct internal_state {
 
     Pos *head; /* Heads of the hash chains or NIL. */
 
-    unsigned int  ins_h;             /* hash index of string to be inserted */
     unsigned int  hash_size;         /* number of elements in hash table */
     unsigned int  hash_bits;         /* log2(hash_size) */
     unsigned int  hash_mask;         /* hash_size-1 */
-
-#if !defined(__x86_64__) && !defined(_M_X64) && !defined(__i386) && !defined(_M_IX86)
-    unsigned int  hash_shift;
-#endif
-    /* Number of bits by which ins_h must be shifted at each input
-     * step. It must be such that after MIN_MATCH steps, the oldest
-     * byte no longer takes part in the hash key, that is:
-     *   hash_shift * MIN_MATCH >= hash_bits
-     */
 
     long block_start;
     /* Window position at the beginning of the current output block. Gets
@@ -167,7 +156,7 @@ typedef struct internal_state {
      */
 
     unsigned int match_length;       /* length of best match */
-    IPos         prev_match;         /* previous match */
+    Pos          prev_match;         /* previous match */
     int          match_available;    /* set if previous match exists */
     unsigned int strstart;           /* start of string to insert */
     unsigned int match_start;        /* start of matching string */
@@ -262,7 +251,7 @@ typedef struct internal_state {
     unsigned long bits_sent;      /* bit length of compressed data sent mod 2^32 */
 #endif
 
-    uint32_t bi_buf;
+    uint64_t bi_buf;
     /* Output buffer. bits are inserted starting at the bottom (least
      * significant bits).
      */
@@ -354,6 +343,26 @@ static inline void put_uint32_msb(deflate_state *s, uint32_t dw) {
     put_byte(s, ((dw >> 16) & 0xff));
     put_byte(s, ((dw >> 8) & 0xff));
     put_byte(s, (dw & 0xff));
+#endif
+}
+
+/* ===========================================================================
+ * Output a 64-bit unsigned int LSB first on the stream.
+ * IN assertion: there is enough room in pending_buf.
+ */
+static inline void put_uint64(deflate_state *s, uint64_t lld) {
+#if defined(UNALIGNED_OK)
+    *(uint64_t *)(&s->pending_buf[s->pending]) = lld;
+    s->pending += 8;
+#else
+    put_byte(s, (lld & 0xff));
+    put_byte(s, ((lld >> 8) & 0xff));
+    put_byte(s, ((lld >> 16) & 0xff));
+    put_byte(s, ((lld >> 24) & 0xff));
+    put_byte(s, ((lld >> 32) & 0xff));
+    put_byte(s, ((lld >> 40) & 0xff));
+    put_byte(s, ((lld >> 48) & 0xff));
+    put_byte(s, ((lld >> 56) & 0xff));
 #endif
 }
 

@@ -1,4 +1,4 @@
-# archdetect.cmake -- Detect compiler architecture and set ARCH and BASEARCH
+# detect-arch.cmake -- Detect compiler architecture and set ARCH and BASEARCH
 # Copyright (C) 2019 Hans Kristian Rosbach
 # Licensed under the Zlib license, see LICENSE.md for details
 set(ARCHDETECT_FOUND TRUE)
@@ -25,14 +25,14 @@ else()
         run_result_unused
         compile_result_unused
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/archdetect.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/detect-arch.c
         COMPILE_OUTPUT_VARIABLE RAWOUTPUT
         CMAKE_FLAGS CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
     )
 
     # Find basearch tag, and extract the arch word into BASEARCH variable
     string(REGEX REPLACE ".*archfound ([a-zA-Z0-9_]+).*" "\\1" ARCH "${RAWOUTPUT}")
-    if (NOT ARCH)
+    if(NOT ARCH)
         set(ARCH unknown)
     endif()
 endif()
@@ -52,7 +52,7 @@ if("${ARCH}" MATCHES "(x86_64|AMD64|i[3-6]86)")
 elseif("${ARCH}" MATCHES "(arm(v[0-9])?|aarch64)")
     set(BASEARCH "arm")
     set(BASEARCH_ARM_FOUND TRUE)
-elseif("${ARCH}" MATCHES "ppc(64)?|powerpc(64)?")
+elseif("${ARCH}" MATCHES "ppc(64(le)?)?|powerpc(64(le)?)?")
     set(BASEARCH "ppc")
     set(BASEARCH_PPC_FOUND TRUE)
 elseif("${ARCH}" MATCHES "alpha")

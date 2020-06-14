@@ -27,18 +27,18 @@
  * of the hash chain (the most recent string with same hash key). Return
  * the previous length of the hash chain.
  */
-
 ZLIB_INTERNAL Pos QUICK_INSERT_STRING(deflate_state *const s, const Pos str) {
     Pos head;
+    uint8_t *strstart = s->window + str;
     uint32_t val, hm, h = 0;
 
 #ifdef UNALIGNED_OK
-    val = *(uint32_t *)(s->window + str);
+    val = *(uint32_t *)(strstart);
 #else
-    val  = ((uint32_t)s->window[str]);
-    val |= ((uint32_t)s->window[str+1] << 8);
-    val |= ((uint32_t)s->window[str+2] << 16);
-    val |= ((uint32_t)s->window[str+3] << 24);
+    val  = ((uint32_t)(strstart[0]));
+    val |= ((uint32_t)(strstart[1]) << 8);
+    val |= ((uint32_t)(strstart[2]) << 16);
+    val |= ((uint32_t)(strstart[3]) << 24);
 #endif
 
     UPDATE_HASH(s, h, val);
@@ -60,7 +60,6 @@ ZLIB_INTERNAL Pos QUICK_INSERT_STRING(deflate_state *const s, const Pos str) {
  *    input characters and the first MIN_MATCH bytes of str are valid
  *    (except for the last MIN_MATCH-1 bytes of the input file).
  */
-
 ZLIB_INTERNAL Pos INSERT_STRING(deflate_state *const s, const Pos str, unsigned int count) {
     Pos idx, ret;
     uint8_t *strstart, *strend;

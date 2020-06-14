@@ -7,17 +7,7 @@
 #include "zbuild.h"
 #include "deflate.h"
 #include "deflate_p.h"
-#include "match_p.h"
 #include "functable.h"
-
-/* ===========================================================================
- * Local data
- */
-
-#ifndef TOO_FAR
-#  define TOO_FAR 4096
-#endif
-/* Matches of length 3 are discarded if their distance exceeds TOO_FAR */
 
 /* ===========================================================================
  * Same as deflate_medium, but achieves better compression. We use a lazy
@@ -25,7 +15,7 @@
  * no better match at the next window position.
  */
 ZLIB_INTERNAL block_state deflate_slow(deflate_state *s, int flush) {
-    IPos hash_head;          /* head of hash chain */
+    Pos hash_head;           /* head of hash chain */
     int bflush = 0;          /* set if current block must be flushed */
 
     /* Process the input block. */
@@ -62,15 +52,10 @@ ZLIB_INTERNAL block_state deflate_slow(deflate_state *s, int flush) {
              * of window index 0 (in particular we have to avoid a match
              * of the string with itself at the start of the input file).
              */
-            s->match_length = longest_match(s, hash_head);
+            s->match_length = functable.longest_match(s, hash_head);
             /* longest_match() sets match_start */
 
-            if (s->match_length <= 5 && (s->strategy == Z_FILTERED
-#if TOO_FAR <= 32767
-                || (s->match_length == MIN_MATCH && s->strstart - s->match_start > TOO_FAR)
-#endif
-                )) {
-
+            if (s->match_length <= 5 && (s->strategy == Z_FILTERED)) {
                 /* If prev_match is also MIN_MATCH, match_start is garbage
                  * but we will ignore the current match anyway.
                  */
@@ -116,7 +101,6 @@ ZLIB_INTERNAL block_state deflate_slow(deflate_state *s, int flush) {
              * single literal. If there was a match but the current match
              * is longer, truncate the previous match to a single literal.
              */
-            Tracevv((stderr, "%c", s->window[s->strstart-1]));
             bflush = zng_tr_tally_lit(s, s->window[s->strstart-1]);
             if (bflush)
                 FLUSH_BLOCK_ONLY(s, 0);
@@ -135,7 +119,6 @@ ZLIB_INTERNAL block_state deflate_slow(deflate_state *s, int flush) {
     }
     Assert(flush != Z_NO_FLUSH, "no flush?");
     if (s->match_available) {
-        Tracevv((stderr, "%c", s->window[s->strstart-1]));
         bflush = zng_tr_tally_lit(s, s->window[s->strstart-1]);
         s->match_available = 0;
     }

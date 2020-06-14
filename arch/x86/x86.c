@@ -17,16 +17,17 @@
 #  include <cpuid.h>
 #endif
 
+ZLIB_INTERNAL int x86_cpu_has_avx2 = 0;
 ZLIB_INTERNAL int x86_cpu_has_sse2 = 0;
+ZLIB_INTERNAL int x86_cpu_has_ssse3 = 0;
 ZLIB_INTERNAL int x86_cpu_has_sse42 = 0;
 ZLIB_INTERNAL int x86_cpu_has_pclmulqdq = 0;
 ZLIB_INTERNAL int x86_cpu_has_tzcnt = 0;
-ZLIB_INTERNAL int x86_cpu_has_avx2 = 0;
 
 static void cpuid(int info, unsigned* eax, unsigned* ebx, unsigned* ecx, unsigned* edx) {
 #ifdef _MSC_VER
     unsigned int registers[4];
-    __cpuid(registers, info);
+    __cpuid((int *)registers, info);
 
     *eax = registers[0];
     *ebx = registers[1];
@@ -40,7 +41,7 @@ static void cpuid(int info, unsigned* eax, unsigned* ebx, unsigned* ecx, unsigne
 static void cpuidex(int info, int subinfo, unsigned* eax, unsigned* ebx, unsigned* ecx, unsigned* edx) {
 #ifdef _MSC_VER
     unsigned int registers[4];
-    __cpuidex(registers, info, subinfo);
+    __cpuidex((int *)registers, info, subinfo);
 
     *eax = registers[0];
     *ebx = registers[1];
@@ -60,6 +61,7 @@ static void __attribute__((constructor)) x86_check_features(void) {
     cpuid(1 /*CPU_PROCINFO_AND_FEATUREBITS*/, &eax, &ebx, &ecx, &edx);
 
     x86_cpu_has_sse2 = edx & 0x4000000;
+    x86_cpu_has_ssse3 = ecx & 0x200;
     x86_cpu_has_sse42 = ecx & 0x100000;
     x86_cpu_has_pclmulqdq = ecx & 0x2;
 
