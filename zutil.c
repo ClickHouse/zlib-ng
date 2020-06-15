@@ -105,7 +105,7 @@ const char * ZEXPORT PREFIX(zError)(int err) {
 #ifndef MY_ZCALLOC /* Any system without a special alloc function */
 
 #ifndef UNALIGNED_OK
-#  include <malloc.h>
+#  include <stdlib.h>
 #  if defined(_WIN32)
 #    define zng_align_alloc(align, size) _aligned_malloc(size, align)
 #    define zng_align_free(ptr)          _aligned_free(ptr)
