@@ -56,7 +56,7 @@
    /* If building or using zlib as a DLL, define ZLIB_DLL.
     * This is not mandatory, but it offers a little performance increase.
     */
-#  if defined(ZLIB_DLL) && (!defined(__BORLANDC__) || (__BORLANDC__ >= 0x500))
+#  if defined(ZLIB_DLL)
 #    ifdef ZLIB_INTERNAL
 #      define ZEXTERN extern __declspec(dllexport)
 #    else
@@ -102,11 +102,11 @@ typedef void const *voidpc;
 typedef void       *voidpf;
 typedef void       *voidp;
 
-#ifdef HAVE_UNISTD_H    /* may be set to #if 1 by ./configure */
+#ifdef HAVE_UNISTD_H    /* may be set to #if 1 by configure/cmake/etc */
 #  define Z_HAVE_UNISTD_H
 #endif
 
-#ifdef NEED_PTRDIFF_T    /* may be set to #if 1 by ./configure */
+#ifdef NEED_PTRDIFF_T    /* may be set to #if 1 by configure/cmake/etc */
 typedef PTRDIFF_TYPE ptrdiff_t;
 #endif
 

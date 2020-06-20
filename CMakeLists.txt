@@ -40,7 +40,7 @@ set(INSTALL_BIN_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Installation direc
 set(INSTALL_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH "Installation directory for libraries")
 set(INSTALL_INC_DIR "${CMAKE_INSTALL_PREFIX}/include" CACHE PATH "Installation directory for headers")
 set(INSTALL_MAN_DIR "${CMAKE_INSTALL_PREFIX}/share/man" CACHE PATH "Installation directory for manual pages")
-set(INSTALL_PKGCONFIG_DIR "${CMAKE_INSTALL_PREFIX}/share/pkgconfig" CACHE PATH "Installation directory for pkgconfig (.pc) files")
+set(INSTALL_PKGCONFIG_DIR "${INSTALL_LIB_DIR}/pkgconfig" CACHE PATH "Installation directory for pkgconfig (.pc) files")
 
 include(CheckTypeSize)
 include(CheckSymbolExists)
@@ -311,10 +311,11 @@ endif()
 # Check for stndard/system includes
 #
 check_include_file(sys/types.h HAVE_SYS_TYPES_H)
+check_include_file(stdarg.h    HAVE_STDARG_H)
 check_include_file(stdint.h    HAVE_STDINT_H)
 check_include_file(stddef.h    HAVE_STDDEF_H)
 check_include_file(sys/sdt.h   HAVE_SYS_SDT_H)
-check_include_file(unistd.h    Z_HAVE_UNISTD_H)
+check_include_file(unistd.h    HAVE_UNISTD_H)
 
 #
 # Check to see if we have large file support
@@ -669,7 +670,6 @@ if(WITH_OPTIM)
         list(APPEND ZLIB_ARCH_HDRS ${ARCHDIR}/arm.h)
         list(APPEND ZLIB_ARCH_SRCS ${ARCHDIR}/armfeature.c)
         if(WITH_NEON)
-            list(APPEND ZLIB_ARCH_HDRS ${ARCHDIR}/adler32_neon.h)
             list(APPEND ZLIB_ARCH_SRCS ${ARCHDIR}/adler32_neon.c ${ARCHDIR}/slide_neon.c)
             add_definitions(-DARM_NEON_ADLER32 -DARM_NEON_SLIDEHASH)
             add_intrinsics_option("${NEONFLAG}")
@@ -782,15 +782,13 @@ macro(generate_cmakein input output)
     file(REMOVE ${output})
     file(STRINGS ${input} _lines)
     foreach(_line IN LISTS _lines)
-        file(APPEND ${output} "${_line}\n")
-
-        if(_line STREQUAL "#define ZCONF_H" OR _line STREQUAL "#define ZCONFNG_H")
-            file(APPEND ${output} "#cmakedefine Z_HAVE_UNISTD_H\n")
-            if(NOT HAVE_PTRDIFF_T)
-              file(APPEND ${output} "#cmakedefine NEED_PTRDIFF_T\n")
-              file(APPEND ${output} "#cmakedefine PTRDIFF_TYPE ${PTRDIFF_TYPE}\n")
-            endif()
+        string(REGEX REPLACE "#ifdef HAVE_UNISTD_H.*" "@ZCONF_UNISTD_LINE@" _line "${_line}")
+        string(REGEX REPLACE "#ifdef HAVE_STDARG_H.*" "@ZCONF_STDARG_LINE@" _line "${_line}")
+        string(REGEX REPLACE "#ifdef NEED_PTRDIFF_T.*" "@ZCONF_PTRDIFF_LINE@" _line "${_line}")
+        if(NEED_PTRDIFF_T)
+            string(REGEX REPLACE "typedef PTRDIFF_TYPE" "typedef @PTRDIFF_TYPE@" _line "${_line}")
         endif()
+        file(APPEND ${output} "${_line}\n")
     endforeach()
 endmacro(generate_cmakein)
 
@@ -818,11 +816,18 @@ if(NOT CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_CURRENT_BINARY_DIR)
     endif()
 endif()
 
-set(ZLIB_PC ${CMAKE_CURRENT_BINARY_DIR}/zlib${SUFFIX}.pc)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/zlib.pc.cmakein
-    ${ZLIB_PC} @ONLY)
-configure_file(${CMAKE_CURRENT_BINARY_DIR}/zconf${SUFFIX}.h.cmakein
-    ${CMAKE_CURRENT_BINARY_DIR}/zconf${SUFFIX}.h @ONLY)
+# Refer to prefix symbolically to ease relocation by end user,
+# as Makefile-generated .pc file does.
+if(INSTALL_INC_DIR STREQUAL "${CMAKE_INSTALL_PREFIX}/include")
+  set(PC_INSTALL_INC_DIR "\${prefix}/include")
+else()
+  set(PC_INSTALL_INC_DIR "${INSTALL_INC_DIR}")
+endif()
+if(INSTALL_LIB_DIR STREQUAL "${CMAKE_INSTALL_PREFIX}/lib")
+  set(PC_INSTALL_LIB_DIR "\${exec_prefix}/lib")
+else()
+  set(PC_INSTALL_LIB_DIR "${INSTALL_LIB_DIR}")
+endif()
 
 #============================================================================
 # zlib
@@ -969,6 +974,28 @@ if(NOT DEFINED BUILD_SHARED_LIBS OR BUILD_SHARED_LIBS)
     endif()
 endif()
 
+if(HAVE_STDARG_H)
+  SET(ZCONF_STDARG_LINE "#if 1    /* was set to #if 1 by configure/cmake/etc */")
+else()
+  SET(ZCONF_STDARG_LINE "#ifdef HAVE_STDARG_H    /* may be set to #if 1 by configure/cmake/etc */")
+endif()
+if(HAVE_UNISTD_H)
+  SET(ZCONF_UNISTD_LINE "#if 1    /* was set to #if 1 by configure/cmake/etc */")
+else()
+  SET(ZCONF_UNISTD_LINE "#ifdef HAVE_UNISTD_H    /* may be set to #if 1 by configure/cmake/etc */")
+endif()
+if(NEED_PTRDIFF_T)
+    SET(ZCONF_PTRDIFF_LINE "#if 1    /* was set to #if 1 by configure/cmake/etc */")
+else()
+    SET(ZCONF_PTRDIFF_LINE "#ifdef NEED_PTRDIFF_T    /* may be set to #if 1 by configure/cmake/etc */")
+endif()
+
+set(ZLIB_PC ${CMAKE_CURRENT_BINARY_DIR}/zlib${SUFFIX}.pc)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/zlib.pc.cmakein
+    ${ZLIB_PC} @ONLY)
+configure_file(${CMAKE_CURRENT_BINARY_DIR}/zconf${SUFFIX}.h.cmakein
+    ${CMAKE_CURRENT_BINARY_DIR}/zconf${SUFFIX}.h @ONLY)
+
 if(NOT SKIP_INSTALL_LIBRARIES AND NOT SKIP_INSTALL_ALL)
     install(TARGETS ${ZLIB_INSTALL_LIBRARIES}
         RUNTIME DESTINATION "${INSTALL_BIN_DIR}"
@@ -1028,6 +1055,10 @@ if(ZLIB_ENABLE_TESTS)
             set_source_files_properties(test/minigzip.c PROPERTIES COMPILE_DEFINITIONS BUFLEN=262144)
         endif()
     endif()
+
+    add_executable(minideflate test/minideflate.c)
+    configure_test_executable(minideflate)
+    target_link_libraries(minideflate zlib)
 
     add_executable(switchlevels test/switchlevels.c)
     configure_test_executable(switchlevels)
@@ -1219,6 +1250,27 @@ if(ZLIB_ENABLE_TESTS)
             "-DCOMMAND=${GH_364_COMMAND}"
             -DINPUT=${CMAKE_CURRENT_SOURCE_DIR}/test/GH-364/test.bin
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/run-and-redirect.cmake)
+
+    set(GH_382_COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:minideflate> -c -m 1 -w -15 -1 -s 4)
+    add_test(NAME GH-382-deflate COMMAND
+            COMMAND ${CMAKE_COMMAND}
+            "-DCOMMAND=${GH_382_COMMAND}"
+            -DINPUT=${CMAKE_CURRENT_SOURCE_DIR}/test/GH-382/defneg3.dat
+            -DOUTPUT=${CMAKE_CURRENT_SOURCE_DIR}/test/GH-382/defneg3.dat.zz
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/run-and-redirect.cmake)
+
+    set(GH_382_COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:minideflate> -c -d -m 1 -w -15)
+    add_test(NAME GH-382-inflate COMMAND
+            COMMAND ${CMAKE_COMMAND}
+            "-DCOMMAND=${GH_382_COMMAND}"
+            -DINPUT=${CMAKE_CURRENT_SOURCE_DIR}/test/GH-382/defneg3.dat.zz
+            -DOUTPUT=${CMAKE_CURRENT_SOURCE_DIR}/test/GH-382/defneg3.dat.out
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/run-and-redirect.cmake)
+
+    add_test(NAME GH-382-cmp
+            COMMAND ${CMAKE_COMMAND} -E compare_files
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/GH-382/defneg3.dat
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/GH-382/defneg3.dat.out)
 
     set(GH_536_COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:switchlevels> 6 9744 1 91207)
     add_test(NAME GH-536-segfault
