@@ -121,6 +121,7 @@ ZLIB_INTERNAL uint32_t adler32_stub(uint32_t adler, const unsigned char *buf, si
     functable.adler32=&adler32_c;
 
     #if (defined(__ARM_NEON__) || defined(__ARM_NEON)) && defined(ARM_NEON_ADLER32)
+    dummy_linker_glue();
     if (arm_cpu_has_neon)
         functable.adler32=&adler32_neon;
     #endif
