@@ -16,6 +16,8 @@
 #  include <winapifamily.h>
 #endif
 
+Z_INTERNAL void dummy_linker_glue_y(void) {}
+
 static int arm_has_crc32() {
 #if defined(__linux__) && defined(ARM_AUXV_HAS_CRC32)
 #  ifdef HWCAP_CRC32

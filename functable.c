@@ -134,6 +134,8 @@ extern uint32_t longest_match_unaligned_avx2(deflate_state *const s, Pos cur_mat
 #endif
 #endif
 
+Z_INTERNAL void dummy_linker_glue_x(void) {}
+
 Z_INTERNAL Z_TLS struct functable_s functable;
 
 /* stub functions */
@@ -303,6 +305,10 @@ Z_INTERNAL uint8_t* chunkunroll_stub(uint8_t *out, unsigned *dist, unsigned *len
 #ifdef ARM_NEON_CHUNKSET
     if (arm_cpu_has_neon)
         functable.chunkunroll = &chunkunroll_neon;
+#endif
+
+#if defined(__APPLE__)
+    dummy_linker_glue_y();
 #endif
 
     return functable.chunkunroll(out, dist, len);
