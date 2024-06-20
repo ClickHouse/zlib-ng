@@ -16,6 +16,13 @@ typedef struct z_stream_s z_stream;
 typedef struct zng_stream_s zng_stream;
 #endif
 
+/*
+ A hack that helps AppleClang linker to see functable.
+ A single call to dummy_linker_glue() in the compilation unit that reads
+ functable will resolve "undefined symbol" link error.
+*/
+void dummy_linker_glue();
+
 struct functable_s {
     void     (* force_init)         (void);
     uint32_t (* adler32)            (uint32_t adler, const uint8_t *buf, size_t len);
