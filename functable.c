@@ -401,3 +401,5 @@ Z_INTERNAL struct functable_s functable = {
     slide_hash_stub,
     update_hash_stub
 };
+
+Z_INTERNAL void dummy_linker_glue(void) {}
