@@ -23,7 +23,7 @@ https://www.ibm.com/products/z15) and newer machines under the name [
 https://www.ibm.com/support/z-content-solutions/compression/). The
 programming interface to it is a machine instruction called DEFLATE
 CONVERSION CALL (DFLTCC). It is documented in Chapter 26 of [Principles
-of Operation](http://publibfp.dhe.ibm.com/epubs/pdf/a227832c.pdf). Both
+of Operation](https://publibfp.dhe.ibm.com/epubs/pdf/a227832c.pdf). Both
 the code and the rest of this document refer to this feature simply as
 "DFLTCC".
 
@@ -61,16 +61,17 @@ integrated with the rest of zlib-ng using hook macros.
 ## Hook macros
 
 DFLTCC takes as arguments a parameter block, an input buffer, an output
-buffer and a window. `ZALLOC_STATE()`, `ZFREE_STATE()`, `ZCOPY_STATE()`,
-`ZALLOC_WINDOW()` and `TRY_FREE_WINDOW()` macros encapsulate allocation
-details for the parameter block (which is allocated alongside zlib-ng
-state) and the window (which must be page-aligned).
+buffer and a window. `ZALLOC_DEFLATE_STATE()`, `ZALLOC_INFLATE_STATE()`,
+`ZFREE_STATE()`, `ZCOPY_DEFLATE_STATE()`, `ZCOPY_INFLATE_STATE()`,
+`ZALLOC_WINDOW()`, `ZCOPY_WINDOW()` and `TRY_FREE_WINDOW()` macros encapsulate
+allocation  details for the parameter block (which is allocated alongside
+zlib-ng state) and the window (which must be page-aligned and large enough).
 
-While inflate software and hardware window formats match, this is not
-the case for deflate. Therefore, `deflateSetDictionary()` and
-`deflateGetDictionary()` need special handling, which is triggered using
-`DEFLATE_SET_DICTIONARY_HOOK()` and `DEFLATE_GET_DICTIONARY_HOOK()`
-macros.
+Software and hardware window formats do not match, therefore,
+`deflateSetDictionary()`, `deflateGetDictionary()`, `inflateSetDictionary()`
+and `inflateGetDictionary()` need special handling, which is triggered using
+`DEFLATE_SET_DICTIONARY_HOOK()`, `DEFLATE_GET_DICTIONARY_HOOK()`,
+`INFLATE_SET_DICTIONARY_HOOK()` and `INFLATE_GET_DICTIONARY_HOOK()` macros.
 
 `deflateResetKeep()` and `inflateResetKeep()` update the DFLTCC
 parameter block using `DEFLATE_RESET_KEEP_HOOK()` and
@@ -212,5 +213,66 @@ access to an IBM z15+ VM or LPAR in order to test DFLTCC support. Since
 DFLTCC is a non-privileged instruction, neither special VM/LPAR
 configuration nor root are required.
 
-Still, zlib-ng CI has a few QEMU TCG-based configurations that check
-whether fallback to software is working.
+zlib-ng CI uses an IBM-provided z15 self-hosted builder for the DFLTCC
+testing. There is no official IBM Z GitHub Actions runner, so we build
+one inspired by `anup-kodlekere/gaplib`.
+Future updates to actions-runner might need an updated patch. The .net
+version number patch has been separated into a separate file to avoid a
+need for constantly changing the patch.
+
+## Configuring the builder.
+
+### Install prerequisites.
+
+```
+sudo dnf install podman
+```
+
+### Add actions-runner service.
+
+```
+sudo cp self-hosted-builder/actions-runner.service /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+### Create a config file, needs github personal access token.
+
+```
+# Create file /etc/actions-runner
+repo=<owner>/<name>
+access_token=<ghp_***>
+```
+
+Access token should have the repo scope, consult
+https://docs.github.com/en/rest/reference/actions#create-a-registration-token-for-a-repository
+for details.
+
+### Autostart actions-runner.
+
+```
+$ sudo systemctl enable --now actions-runner
+```
+
+## Rebuilding the container
+
+In order to update the `gaplib-actions-runner` podman container, e.g. to get the
+latest OS security fixes, follow these steps:
+```
+# Stop actions-runner service
+sudo systemctl stop actions-runner
+
+# Delete old container
+sudo podman container rm gaplib-actions-runner
+
+# Delete old image
+sudo podman image rm localhost/zlib-ng/actions-runner
+
+# Build image
+sudo podman build --squash -f Dockerfile.zlib-ng --tag zlib-ng/actions-runner --build-arg .
+
+# Build container
+sudo podman create --name=gaplib-actions-runner --env-file=/etc/actions-runner --init --interactive --volume=actions-runner-temp:/home/actions-runner zlib-ng/actions-runner
+
+# Start actions-runner service
+sudo systemctl start actions-runner
+```
