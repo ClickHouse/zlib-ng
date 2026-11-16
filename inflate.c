@@ -70,6 +70,8 @@ int32_t Z_EXPORT PREFIX(inflateResetKeep)(PREFIX3(stream) *strm) {
         strm->adler = state->wrap & 1;
     state->mode = HEAD;
     state->check = ADLER32_INITIAL_VALUE;
+    /* inf_chksum() can use crc_fold before a gzip header resets it */
+    functable.crc32_fold_reset(&state->crc_fold);
     state->last = 0;
     state->havedict = 0;
     state->flags = -1;
